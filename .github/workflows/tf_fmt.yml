@@ -1,4 +1,4 @@
-name: TF check
+name: TF FMT check
 
 on:
   pull_request:
@@ -14,4 +14,4 @@ jobs:
         name: Terraform Initialize
       - run: terraform init
         name: Terraform Format
-      - run: terraform fmt recursive
+      - run: terraform fmt -recursive
