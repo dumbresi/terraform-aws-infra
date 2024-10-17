@@ -5,12 +5,12 @@ on:
     branches: ["main"]
 
 jobs:
-  build:
+  tf_fmt:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
 

@@ -5,7 +5,7 @@ on:
     branches: ["main"]
 
 jobs:
-  build:
+  tf_validate:
     runs-on: ubuntu-latest
     steps:
       - name: Setup Terraform
