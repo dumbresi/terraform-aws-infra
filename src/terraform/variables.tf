@@ -31,13 +31,26 @@ variable "ami_instance_type" {
 }
 
 variable "http_port" {
-  type = string
+  type    = string
+  default = "80"
 }
 
 variable "https_port" {
-  type = string
+  type    = string
+  default = "443"
+}
+
+variable "ssh_port" {
+  type    = string
+  default = "22"
 }
 
 variable "server_port" {
-  type = string
+  type    = string
+  default = "3000"
+}
+
+variable "cidr_block" {
+  type    = string
+  default = "0.0.0.0/0"
 }
