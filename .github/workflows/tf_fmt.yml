@@ -5,13 +5,19 @@ on:
     branches: ["main"]
 
 jobs:
-  build:
+  tf_fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        name: Setup Terraform
-      - uses: hashicorp/setup-terraform@v1
-        name: Terraform Initialize
-      - run: terraform init
-        name: Terraform Format
-      - run: terraform fmt -recursive
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Terraform Initialize
+        run: terraform init
+        working-directory: ./src/terraform
+
+      - name: Terraform Format
+        run: terraform fmt -recursive
+        working-directory: ./src/terraform

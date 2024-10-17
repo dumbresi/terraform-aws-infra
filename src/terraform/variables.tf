@@ -54,3 +54,13 @@ variable "cidr_block" {
   type    = string
   default = "0.0.0.0/0"
 }
+
+variable "root_block_device_volume_size"{
+  type = string
+  default ="25"
+}
+
+variable "root_block_device_volume_type"{
+  type = string
+  default= "gp2"
+}

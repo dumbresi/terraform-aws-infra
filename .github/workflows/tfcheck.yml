@@ -5,13 +5,19 @@ on:
     branches: ["main"]
 
 jobs:
-  build:
+  tf_validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        name: Setup Terraform
-      - uses: hashicorp/setup-terraform@v1
-        name: Terraform Initialize
-      - run: terraform init
-        name: Terraform Validate
-      - run: terraform validate
+      - name: Setup Terraform
+        uses: actions/checkout@v4
+        
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Terraform Initialize
+        run: terraform init
+        working-directory: ./src/terraform
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ./src/terraform
