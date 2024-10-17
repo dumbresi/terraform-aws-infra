@@ -71,8 +71,8 @@ resource "aws_instance" "my_ami_ec2" {
   vpc_security_group_ids      = [aws_security_group.application_security_group.id]
   associate_public_ip_address = true
   root_block_device {
-    volume_size = 25
-    volume_type = "gp2"
+    volume_size = var.root_block_device_volume_size
+    volume_type = var.root_block_device_volume_type
     delete_on_termination = true
   }
   disable_api_termination = false
