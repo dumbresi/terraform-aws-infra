@@ -68,18 +68,24 @@ resource "aws_instance" "my_ami_ec2" {
   ami                         = var.ami_id
   instance_type               = var.ami_instance_type
   subnet_id                   = aws_subnet.public[0].id
-  vpc_security_group_ids      = [aws_security_group.web_app_security.id]
+  vpc_security_group_ids      = [aws_security_group.application_security_group.id]
   associate_public_ip_address = true
+  root_block_device {
+    volume_size = 25
+    volume_type = "gp2"
+    delete_on_termination = true
+  }
+  disable_api_termination = false
 }
 
 
-resource "aws_security_group" "web_app_security" {
+resource "aws_security_group" "application_security_group" {
   name   = "HTTP and HTTPS"
   vpc_id = aws_vpc.main.id
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_http" {
-  security_group_id = aws_security_group.web_app_security.id
+  security_group_id = aws_security_group.application_security_group.id
   cidr_ipv4         = var.cidr_block
   from_port         = var.http_port
   ip_protocol       = "tcp"
@@ -87,7 +93,7 @@ resource "aws_vpc_security_group_ingress_rule" "allow_http" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_https" {
-  security_group_id = aws_security_group.web_app_security.id
+  security_group_id = aws_security_group.application_security_group.id
   cidr_ipv4         = var.cidr_block
   from_port         = var.https_port
   ip_protocol       = "tcp"
@@ -95,7 +101,7 @@ resource "aws_vpc_security_group_ingress_rule" "allow_https" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_ssh" {
-  security_group_id = aws_security_group.web_app_security.id
+  security_group_id = aws_security_group.application_security_group.id
   cidr_ipv4         = var.cidr_block
   from_port         = 22
   ip_protocol       = "tcp"
@@ -103,13 +109,13 @@ resource "aws_vpc_security_group_ingress_rule" "allow_ssh" {
 }
 
 resource "aws_vpc_security_group_egress_rule" "allow_all_traffic_ipv4" {
-  security_group_id = aws_security_group.web_app_security.id
+  security_group_id = aws_security_group.application_security_group.id
   cidr_ipv4         = var.cidr_block
   ip_protocol       = -1
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_server" {
-  security_group_id = aws_security_group.web_app_security.id
+  security_group_id = aws_security_group.application_security_group.id
   cidr_ipv4         = var.cidr_block
   from_port         = var.server_port
   ip_protocol       = "tcp"
