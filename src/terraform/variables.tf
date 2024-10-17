@@ -20,3 +20,37 @@ variable "private_subnets_cidrs" {
   description = "CIDR blocks for private subnets"
   type        = list(string)
 }
+
+variable "ami_id" {
+  description = "AMI id of the image file"
+  type        = string
+}
+
+variable "ami_instance_type" {
+  type = string
+}
+
+variable "http_port" {
+  type    = string
+  default = "80"
+}
+
+variable "https_port" {
+  type    = string
+  default = "443"
+}
+
+variable "ssh_port" {
+  type    = string
+  default = "22"
+}
+
+variable "server_port" {
+  type    = string
+  default = "3000"
+}
+
+variable "cidr_block" {
+  type    = string
+  default = "0.0.0.0/0"
+}
