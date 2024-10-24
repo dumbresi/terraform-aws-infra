@@ -80,13 +80,13 @@ resource "aws_instance" "my_ami_ec2" {
 
   user_data = <<-EOF
               #!/bin/bash
-              echo "App_Port=:${var.server_port}" > /home/ec2-user/.env
-              echo "DB_Host=${aws_db_instance.my_rds_instance.endpoint}"> /home/ec2-user/.env
-              echo "DB_Port=5432">/home/ec2-user/.env
-              echo "DB_Name=aws_db_instance.my_rds_instance.db_name" > /home/ec2-user/.env
-              echo "DB_User=aws_db_instance.my_rds_instance.username" > /home/ec2-user/.env
-              echo "DB_Password=aws_db_instance.my_rds_instance.password" > /home/ec2-user/.env
-              echo "DB_SslMode=disable" > DB_SslMode
+              echo "App_Port=${var.server_port}" >> /usr/bin/.env
+              echo "DB_Host=${aws_db_instance.my_rds_instance.address}">> /usr/bin/.env
+              echo "DB_Port=${var.postgres_port}" >> /usr/bin/.env
+              echo "DB_Name=${aws_db_instance.my_rds_instance.db_name}" >> /usr/bin/.env
+              echo "DB_User=${aws_db_instance.my_rds_instance.username}" >> /usr/bin/.env
+              echo "DB_Password=${aws_db_instance.my_rds_instance.password}" >> /usr/bin/.env
+              echo "DB_SslMode=disable" > DB_SslMode >> /usr/bin/.env
 
               sudo mv /home/ec2-user/.env /usr/bin/.env
               sudo systemctl restart webapp.service
@@ -103,7 +103,6 @@ resource "aws_db_instance" "my_rds_instance" {
   publicly_accessible    = false
   db_name                = "csye6225"
   engine                 = "postgres"
-  engine_version         = "16.1"
   username               = "sid"
   password               = "Longwood69"
   parameter_group_name   = aws_db_parameter_group.rds_parameter_group.name
@@ -118,7 +117,7 @@ resource "aws_db_parameter_group" "rds_parameter_group" {
 
 resource "aws_db_subnet_group" "my_db_subnet_group" {
   name       = "my-db-subnet-group"
-  subnet_ids = [aws_subnet.private[0].id,aws_subnet.private[1].id,aws_subnet.private[2].id]
+  subnet_ids = [aws_subnet.private[0].id, aws_subnet.private[1].id, aws_subnet.private[2].id]
 
   tags = {
     Name = "My DB Subnet Group"
@@ -136,11 +135,11 @@ resource "aws_security_group" "database_security_group" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_postgres" {
-  security_group_id = aws_security_group.database_security_group.id
-  cidr_ipv4         = var.private_subnets_cidrs[0]
-  from_port         = var.postgres_port
-  ip_protocol       = "tcp"
-  to_port           = var.postgres_port
+  security_group_id            = aws_security_group.database_security_group.id
+  referenced_security_group_id = aws_security_group.application_security_group.id
+  from_port                    = var.postgres_port
+  ip_protocol                  = "tcp"
+  to_port                      = var.postgres_port
 }
 
 resource "aws_vpc_security_group_egress_rule" "allow_traffic_from_db" {
