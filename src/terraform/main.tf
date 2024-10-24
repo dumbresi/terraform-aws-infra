@@ -89,6 +89,7 @@ resource "aws_instance" "my_ami_ec2" {
               echo "DB_SslMode=disable" > DB_SslMode
 
               sudo mv /home/ec2-user/.env /usr/bin/.env
+              sudo systemctl restart webapp.service
               EOF
 }
 
