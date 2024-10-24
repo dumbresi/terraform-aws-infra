@@ -66,22 +66,95 @@ resource "aws_route_table_association" "private" {
 
 resource "aws_instance" "my_ami_ec2" {
   ami                         = var.ami_id
+  depends_on                  = [aws_db_instance.my_rds_instance]
   instance_type               = var.ami_instance_type
   subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.application_security_group.id]
   associate_public_ip_address = true
   root_block_device {
-    volume_size = var.root_block_device_volume_size
-    volume_type = var.root_block_device_volume_type
+    volume_size           = var.root_block_device_volume_size
+    volume_type           = var.root_block_device_volume_type
     delete_on_termination = true
   }
   disable_api_termination = false
+
+  user_data = <<-EOF
+              #!/bin/bash
+              echo "App_Port=${var.server_port}" >> /usr/bin/.env
+              echo "DB_Host=${aws_db_instance.my_rds_instance.address}">> /usr/bin/.env
+              echo "DB_Port=${var.postgres_port}" >> /usr/bin/.env
+              echo "DB_Name=${aws_db_instance.my_rds_instance.db_name}" >> /usr/bin/.env
+              echo "DB_User=${aws_db_instance.my_rds_instance.username}" >> /usr/bin/.env
+              echo "DB_Password=${aws_db_instance.my_rds_instance.password}" >> /usr/bin/.env
+              echo "DB_SslMode=disable" > DB_SslMode >> /usr/bin/.env
+
+              sudo mv /home/ec2-user/.env /usr/bin/.env
+              sudo systemctl restart webapp.service
+              EOF
 }
 
+resource "aws_db_instance" "my_rds_instance" {
+  allocated_storage      = var.rds_allocated_storage
+  instance_class         = var.rds_instance_class
+  multi_az               = var.rds_multi_az
+  identifier             = var.rds_identifier
+  db_subnet_group_name   = aws_db_subnet_group.my_db_subnet_group.name
+  vpc_security_group_ids = [aws_security_group.database_security_group.id]
+  publicly_accessible    = var.rds_publicly_accessible
+  db_name                = var.DB_Name
+  engine                 = var.rds_engine
+  username               = var.DB_User
+  password               = var.DB_Password
+  parameter_group_name   = aws_db_parameter_group.rds_parameter_group.name
+  skip_final_snapshot    = var.skip_final_snapshot
+}
+
+resource "aws_db_parameter_group" "rds_parameter_group" {
+  name        = "webapp-postgres-parameter-group"
+  family      = "postgres16"
+  description = "Example parameter group for PostgreSQL 16"
+  parameter {
+    name  = "rds.force_ssl"
+    value = var.rds_force_ssl
+  }
+
+  parameter {
+    name  = "log_connections"
+    value = var.log_connections
+  }
+}
+
+resource "aws_db_subnet_group" "my_db_subnet_group" {
+  name       = "my-db-subnet-group"
+  subnet_ids = [aws_subnet.private[0].id, aws_subnet.private[1].id, aws_subnet.private[2].id]
+
+  tags = {
+    Name = "My DB Subnet Group"
+  }
+}
 
 resource "aws_security_group" "application_security_group" {
-  name   = "HTTP and HTTPS"
+  name   = "application_security_group"
   vpc_id = aws_vpc.main.id
+}
+
+resource "aws_security_group" "database_security_group" {
+  name   = "db_security_group"
+  vpc_id = aws_vpc.main.id
+}
+
+resource "aws_vpc_security_group_ingress_rule" "allow_postgres" {
+  security_group_id            = aws_security_group.database_security_group.id
+  referenced_security_group_id = aws_security_group.application_security_group.id
+  from_port                    = var.postgres_port
+  ip_protocol                  = "tcp"
+  to_port                      = var.postgres_port
+}
+
+resource "aws_vpc_security_group_egress_rule" "allow_traffic_from_db" {
+  security_group_id = aws_security_group.database_security_group.id
+  cidr_ipv4         = var.cidr_block
+  ip_protocol       = -1
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_http" {
