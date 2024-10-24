@@ -94,25 +94,34 @@ resource "aws_instance" "my_ami_ec2" {
 }
 
 resource "aws_db_instance" "my_rds_instance" {
-  allocated_storage      = 10
-  instance_class         = "db.t3.micro"
-  multi_az               = false
-  identifier             = "csye6225"
+  allocated_storage      = var.rds_allocated_storage
+  instance_class         = var.rds_instance_class
+  multi_az               = var.rds_multi_az
+  identifier             = var.rds_identifier
   db_subnet_group_name   = aws_db_subnet_group.my_db_subnet_group.name
   vpc_security_group_ids = [aws_security_group.database_security_group.id]
-  publicly_accessible    = false
-  db_name                = "csye6225"
-  engine                 = "postgres"
-  username               = "sid"
-  password               = "Longwood69"
+  publicly_accessible    = var.rds_publicly_accessible
+  db_name                = var.DB_Name
+  engine                 = var.rds_engine
+  username               = var.DB_User
+  password               = var.DB_Password
   parameter_group_name   = aws_db_parameter_group.rds_parameter_group.name
-  skip_final_snapshot    = true
+  skip_final_snapshot    = var.skip_final_snapshot
 }
 
 resource "aws_db_parameter_group" "rds_parameter_group" {
   name        = "webapp-postgres-parameter-group"
   family      = "postgres16"
   description = "Example parameter group for PostgreSQL 16"
+  parameter {
+    name  = "rds.force_ssl"
+    value = var.rds_force_ssl
+  }
+
+  parameter {
+    name  = "log_connections"
+    value = var.log_connections
+  }
 }
 
 resource "aws_db_subnet_group" "my_db_subnet_group" {
@@ -125,7 +134,7 @@ resource "aws_db_subnet_group" "my_db_subnet_group" {
 }
 
 resource "aws_security_group" "application_security_group" {
-  name   = "HTTP and HTTPS"
+  name   = "application_security_group"
   vpc_id = aws_vpc.main.id
 }
 

@@ -69,3 +69,63 @@ variable "postgres_port" {
   type    = string
   default = "5432"
 }
+
+variable "rds_allocated_storage" {
+  type    = string
+  default = "10"
+}
+
+variable "rds_instance_class" {
+  type    = string
+  default = "db.t3.micro"
+}
+
+variable "rds_multi_az" {
+  type    = string
+  default = false
+}
+
+variable "rds_identifier" {
+  type    = string
+  default = "csye6225"
+}
+
+variable "rds_publicly_accessible" {
+  type    = string
+  default = false
+}
+
+variable "DB_Name" {
+  type    = string
+  default = "csye6225"
+}
+
+variable "rds_engine" {
+  type    = string
+  default = "postgres"
+}
+
+variable "DB_User" {
+  type    = string
+  default = "csye6225"
+}
+
+variable "DB_Password" {
+  type = string
+}
+
+variable "skip_final_snapshot" {
+  type    = string
+  default = true
+}
+
+variable "rds_force_ssl" {
+  type    = string
+  default = "0"
+}
+
+variable "log_connections" {
+  type    = string
+  default = 1
+}
+
