@@ -5,7 +5,6 @@ resource "aws_instance" "my_ami_ec2" {
   subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.application_security_group.id]
   associate_public_ip_address = true
-  key_name                    = "aws_dev_key"
   root_block_device {
     volume_size           = var.root_block_device_volume_size
     volume_type           = var.root_block_device_volume_type
@@ -72,8 +71,7 @@ resource "aws_iam_role" "ec2_role" {
 }
 
 resource "aws_s3_bucket" "my_s3_bucket" {
-  bucket="sid-bucket-${random_uuid.uuid.result}"
-  acl= "private"
+  bucket        = "sid-bucket-${random_uuid.bucket_uuid.result}"
   force_destroy = true
 
   server_side_encryption_configuration {
@@ -83,14 +81,19 @@ resource "aws_s3_bucket" "my_s3_bucket" {
       }
     }
   }
-  
+
+}
+
+resource "aws_s3_bucket_acl" "my_bucket_acl" {
+  bucket = aws_s3_bucket.my_s3_bucket.id
+  acl    = "private"
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "_bucket_lifecycle" {
-  bucket = aws_s3_bucket.my_s3_bucket.bucket
+  bucket = aws_s3_bucket.my_s3_bucket.id
 
   rule {
-    id     = "transition-to-IA"   
+    id     = "transition-to-IA"
     status = "Enabled"
 
     transition {
@@ -128,8 +131,8 @@ resource "aws_iam_policy" "s3_access_policy" {
           "s3:PutObject"
         ]
         Resource = [
-          "arn:aws:s3:::sidd1234",
-          "arn:aws:s3:::sidd1234/*"
+          "arn:aws:s3:::${aws_s3_bucket.my_s3_bucket.bucket}",
+          "arn:aws:s3:::${aws_s3_bucket.my_s3_bucket.bucket}/*"
         ]
       }
     ]
@@ -256,17 +259,13 @@ resource "aws_security_group" "database_security_group" {
   vpc_id = aws_vpc.main.id
 }
 
-
-
 resource "aws_route53_record" "my_record" {
-  zone_id = "Z016850939BMD3U05VFFL"
-  name    = "dev.siddumbre.me"
-  type    = "A"
-  ttl     = 60
+  zone_id = var.route53_zone_id
+  name    = var.route_53_name
+  type    = var.route_53_type
+  ttl     = var.route_53_ttl
   records = [aws_instance.my_ami_ec2.public_ip]
 }
-
-
 
 resource "aws_vpc_security_group_ingress_rule" "allow_postgres" {
   security_group_id            = aws_security_group.database_security_group.id
