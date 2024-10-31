@@ -84,9 +84,13 @@ resource "aws_s3_bucket" "my_s3_bucket" {
 
 }
 
-resource "aws_s3_bucket_acl" "my_bucket_acl" {
+resource "aws_s3_bucket_public_access_block" "example" {
   bucket = aws_s3_bucket.my_s3_bucket.id
-  acl    = "private"
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "_bucket_lifecycle" {
@@ -128,7 +132,8 @@ resource "aws_iam_policy" "s3_access_policy" {
         Effect = "Allow"
         Action = [
           "s3:GetObject",
-          "s3:PutObject"
+          "s3:PutObject",
+          "s3:DeleteObject"
         ]
         Resource = [
           "arn:aws:s3:::${aws_s3_bucket.my_s3_bucket.bucket}",
