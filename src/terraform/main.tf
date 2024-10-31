@@ -5,6 +5,7 @@ resource "aws_instance" "my_ami_ec2" {
   subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.application_security_group.id]
   associate_public_ip_address = true
+  key_name                    = "aws_dev_key"
   root_block_device {
     volume_size           = var.root_block_device_volume_size
     volume_type           = var.root_block_device_volume_type
@@ -21,9 +22,10 @@ resource "aws_instance" "my_ami_ec2" {
               echo "DB_Name=${aws_db_instance.my_rds_instance.db_name}" >> /usr/bin/.env
               echo "DB_User=${aws_db_instance.my_rds_instance.username}" >> /usr/bin/.env
               echo "DB_Password=${aws_db_instance.my_rds_instance.password}" >> /usr/bin/.env
-              echo "DB_SslMode=disable" > DB_SslMode >> /usr/bin/.env
+              echo "DB_SslMode=disable" >> /usr/bin/.env
+              echo "AWS_Region=${var.aws_region}" >> /usr/bin/.env
+              echo "S3_Bucket_Name=${aws_s3_bucket.my_s3_bucket.bucket}" >> /usr/bin/.env
 
-              sudo mv /home/ec2-user/.env /usr/bin/.env
               sudo systemctl restart webapp.service
 
               # Configure CloudWatch
@@ -67,6 +69,35 @@ resource "aws_iam_role" "ec2_role" {
       }
     ]
   })
+}
+
+resource "aws_s3_bucket" "my_s3_bucket" {
+  bucket="sid-bucket-${random_uuid.uuid.result}"
+  acl= "private"
+  force_destroy = true
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+  
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "_bucket_lifecycle" {
+  bucket = aws_s3_bucket.my_s3_bucket.bucket
+
+  rule {
+    id     = "transition-to-IA"   
+    status = "Enabled"
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "s3_policy_attachment" {
@@ -288,3 +319,5 @@ resource "aws_vpc_security_group_ingress_rule" "allow_server" {
   ip_protocol       = "tcp"
   to_port           = var.server_port
 }
+
+resource "random_uuid" "bucket_uuid" {}
