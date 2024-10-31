@@ -129,3 +129,22 @@ variable "log_connections" {
   default = 1
 }
 
+variable "route53_zone_id" {
+  type    = string
+  default = "Z016850939BMD3U05VFFL"
+}
+
+variable "route_53_name" {
+  type    = string
+  default = "dev.siddumbre.me"
+}
+
+variable "route_53_type" {
+  type    = string
+  default = "A"
+}
+
+variable "route_53_ttl" {
+  type    = string
+  default = 60
+}
