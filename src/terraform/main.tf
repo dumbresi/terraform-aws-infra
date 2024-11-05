@@ -37,6 +37,38 @@ resource "aws_instance" "my_ami_ec2" {
               EOF
 }
 
+resource "aws_lb" "my_load_balancer" {
+  name                       = "my-load-balancer"
+  internal                   = false
+  load_balancer_type         = "application"
+  security_groups            = [aws_security_group.load_balancer_security_group.id]
+  subnets                    = [for subnet in aws_subnet.public : subnet.id]
+  enable_deletion_protection = false
+}
+
+resource "aws_lb_listener" "my_lb_listener" {
+  load_balancer_arn = aws_lb.my_load_balancer.arn
+  port              = "80"
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.my_lb_target_group.arn
+  }
+}
+
+resource "aws_lb_target_group" "my_lb_target_group" {
+  name     = "lb-target-group"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+}
+
+resource "aws_lb_target_group_attachment" "my_lb_tgt_gp_attachment" {
+  target_group_arn = aws_lb_target_group.my_lb_target_group.arn
+  target_id        = aws_instance.my_ami_ec2.id
+  port             = 3000
+}
+
 resource "aws_db_instance" "my_rds_instance" {
   allocated_storage      = var.rds_allocated_storage
   instance_class         = var.rds_instance_class
@@ -259,6 +291,11 @@ resource "aws_security_group" "application_security_group" {
   vpc_id = aws_vpc.main.id
 }
 
+resource "aws_security_group" "load_balancer_security_group" {
+  name   = "lb_security_group"
+  vpc_id = aws_vpc.main.id
+}
+
 resource "aws_security_group" "database_security_group" {
   name   = "db_security_group"
   vpc_id = aws_vpc.main.id
@@ -268,8 +305,13 @@ resource "aws_route53_record" "my_record" {
   zone_id = var.route53_zone_id
   name    = var.route_53_name
   type    = var.route_53_type
-  ttl     = var.route_53_ttl
-  records = [aws_instance.my_ami_ec2.public_ip]
+  # ttl     = var.route_53_ttl
+  # records = [aws_instance.my_ami_ec2.public_ip]
+  alias {
+    name                   = aws_lb.my_load_balancer.dns_name
+    zone_id                = aws_lb.my_load_balancer.zone_id
+    evaluate_target_health = true
+  }
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_postgres" {
@@ -286,7 +328,7 @@ resource "aws_vpc_security_group_egress_rule" "allow_traffic_from_db" {
   ip_protocol       = -1
 }
 
-resource "aws_vpc_security_group_ingress_rule" "allow_http" {
+resource "aws_vpc_security_group_ingress_rule" "allow_load_balancer_traffic" {
   security_group_id = aws_security_group.application_security_group.id
   cidr_ipv4         = var.cidr_block
   from_port         = var.http_port
@@ -294,13 +336,34 @@ resource "aws_vpc_security_group_ingress_rule" "allow_http" {
   to_port           = var.http_port
 }
 
-resource "aws_vpc_security_group_ingress_rule" "allow_https" {
-  security_group_id = aws_security_group.application_security_group.id
+# resource "aws_vpc_security_group_ingress_rule" "allow_http" {
+#   security_group_id = aws_security_group.application_security_group.id
+#   cidr_ipv4         = var.cidr_block
+#   from_port         = var.http_port
+#   ip_protocol       = "tcp"
+#   to_port           = var.http_port
+# }
+
+resource "aws_vpc_security_group_ingress_rule" "lb_allow_http" {
+  security_group_id = aws_security_group.load_balancer_security_group.id
   cidr_ipv4         = var.cidr_block
-  from_port         = var.https_port
+  from_port         = var.http_port
   ip_protocol       = "tcp"
-  to_port           = var.https_port
+  to_port           = var.http_port
 }
+
+resource "aws_vpc_security_group_egress_rule" "lb_egress" {
+  security_group_id = aws_security_group.load_balancer_security_group.id
+  cidr_ipv4 = var.cidr_block
+  ip_protocol = -1
+}
+# resource "aws_vpc_security_group_ingress_rule" "allow_https" {
+#   security_group_id = aws_security_group.application_security_group.id
+#   cidr_ipv4         = var.cidr_block
+#   from_port         = var.https_port
+#   ip_protocol       = "tcp"
+#   to_port           = var.https_port
+# }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_ssh" {
   security_group_id = aws_security_group.application_security_group.id
@@ -316,7 +379,7 @@ resource "aws_vpc_security_group_egress_rule" "allow_all_traffic_ipv4" {
   ip_protocol       = -1
 }
 
-resource "aws_vpc_security_group_ingress_rule" "allow_server" {
+resource "aws_vpc_security_group_ingress_rule" "allow_server_port" {
   security_group_id = aws_security_group.application_security_group.id
   cidr_ipv4         = var.cidr_block
   from_port         = var.server_port
