@@ -131,11 +131,12 @@ resource "aws_cloudwatch_metric_alarm" "cpu_high" {
   evaluation_periods  = 1
   metric_name         = "CPUUtilization"
   namespace           = "AWS/EC2"
-  period              = 300
+  period              = 180
   statistic           = "Average"
-  threshold           = 5
-  alarm_description   = "Scale out if CPU > 5%"
+  threshold           = 10
+  alarm_description   = "Scale out if CPU > 10%"
   actions_enabled     = true
+  treat_missing_data = "notBreaching"
 
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.my_autoscalar.name
@@ -152,9 +153,10 @@ resource "aws_cloudwatch_metric_alarm" "cpu_low" {
   namespace           = "AWS/EC2"
   period              = 300
   statistic           = "Average"
-  threshold           = 3
-  alarm_description   = "Scale in if CPU < 3%"
+  threshold           = 7
+  alarm_description   = "Scale in if CPU < 7%"
   actions_enabled     = true
+  treat_missing_data = "notBreaching"
 
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.my_autoscalar.name
@@ -190,7 +192,7 @@ resource "aws_lb_listener" "my_lb_listener" {
 
 resource "aws_lb_target_group" "my_lb_target_group" {
   name     = "lb-target-group"
-  port     = 80
+  port     = 3000
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
 
