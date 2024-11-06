@@ -148,3 +148,7 @@ variable "route_53_ttl" {
   type    = string
   default = 60
 }
+
+variable "public_key" {
+  type = string
+}
