@@ -38,17 +38,17 @@
 # }
 
 resource "aws_launch_template" "ec2_launch_template" {
-  name_prefix   = "ec2_lt"
+  name_prefix   = var.launch_temp_name_prefix
   image_id      = var.ami_id
   instance_type = var.ami_instance_type
   key_name      = aws_key_pair.ssh_key_pair.key_name
 
   disable_api_termination = false
-  depends_on = [ aws_db_instance.my_rds_instance ]
+  depends_on              = [aws_db_instance.my_rds_instance]
   # subnet_id                   = aws_subnet.public[0].id
 
   block_device_mappings {
-    device_name = "/dev/sda1"
+    device_name = var.launch_temp_device_name
     ebs {
       volume_size           = var.root_block_device_volume_size
       volume_type           = var.root_block_device_volume_type
@@ -91,14 +91,13 @@ resource "aws_launch_template" "ec2_launch_template" {
 }
 
 resource "aws_autoscaling_group" "my_autoscalar" {
-  name = "csye6225_asg"
-  # availability_zones        = data.aws_availability_zones.available.names
-  desired_capacity          = 2
-  max_size                  = 3
-  min_size                  = 1
-  health_check_grace_period = 300
-  default_cooldown          = 60
-  target_group_arns = [aws_lb_target_group.my_lb_target_group.arn]
+  name                      = "csye6225_asg"
+  desired_capacity          = var.autoscaling_desiredCapacity
+  max_size                  = var.autoscaling_maxSize
+  min_size                  = var.autoscaling_minSize
+  health_check_grace_period = var.health_check_grace_period
+  default_cooldown          = var.autoscaling_cooldown
+  target_group_arns         = [aws_lb_target_group.my_lb_target_group.arn]
   vpc_zone_identifier       = [aws_subnet.public[0].id, aws_subnet.public[1].id, aws_subnet.public[2].id]
 
   launch_template {
@@ -110,33 +109,32 @@ resource "aws_autoscaling_group" "my_autoscalar" {
 
 resource "aws_autoscaling_policy" "scale_out" {
   name                   = "scale-out"
-  scaling_adjustment     = 1
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 300
+  scaling_adjustment     = var.autoscaling_policy_scale_out_adjustment
+  adjustment_type        = var.autoscaling_policy_adjustment_type
+  cooldown               = var.autoscaling_cooldown
   autoscaling_group_name = aws_autoscaling_group.my_autoscalar.name
 }
 
-# Define a scaling policy for scaling in
 resource "aws_autoscaling_policy" "scale_in" {
   name                   = "scale-in"
-  scaling_adjustment     = -1
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 300
+  scaling_adjustment     = var.autoscaling_policy_scale_in_adjustment
+  adjustment_type        = var.autoscaling_policy_adjustment_type
+  cooldown               = var.autoscaling_cooldown
   autoscaling_group_name = aws_autoscaling_group.my_autoscalar.name
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu_high" {
   alarm_name          = "cpu-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/EC2"
-  period              = 180
-  statistic           = "Average"
-  threshold           = 10
+  comparison_operator = var.cpu_high_alarm_comparison_operator
+  evaluation_periods  = var.cloudwatch_metric_evaluation_periods
+  metric_name         = var.cloudwatch_metric_alarm_name
+  namespace           = var.cloudwatch_metric_alarm_namespace
+  period              = var.cpu_high_alarm_period
+  statistic           = var.cloudwatch_metric_alarm_statistic
+  threshold           = var.cpu_high_threshold
   alarm_description   = "Scale out if CPU > 10%"
-  actions_enabled     = true
-  treat_missing_data = "notBreaching"
+  actions_enabled     = var.cloudwatch_metric_actions_enabled
+  treat_missing_data  = var.cloudwatch_metric_treat_missing_data
 
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.my_autoscalar.name
@@ -147,16 +145,16 @@ resource "aws_cloudwatch_metric_alarm" "cpu_high" {
 
 resource "aws_cloudwatch_metric_alarm" "cpu_low" {
   alarm_name          = "cpu-low"
-  comparison_operator = "LessThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/EC2"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 7
+  comparison_operator = var.cpu_low_alarm_comparision_operatpr
+  evaluation_periods  = var.cloudwatch_metric_evaluation_periods
+  metric_name         = var.cloudwatch_metric_alarm_name
+  namespace           = var.cloudwatch_metric_alarm_namespace
+  period              = var.cpu_low_alarm_period
+  statistic           = var.cloudwatch_metric_alarm_statistic
+  threshold           = var.cpu_low_threshold
   alarm_description   = "Scale in if CPU < 7%"
-  actions_enabled     = true
-  treat_missing_data = "notBreaching"
+  actions_enabled     = var.cloudwatch_metric_actions_enabled
+  treat_missing_data  = var.cloudwatch_metric_treat_missing_data
 
   dimensions = {
     AutoScalingGroupName = aws_autoscaling_group.my_autoscalar.name
@@ -174,7 +172,7 @@ resource "aws_autoscaling_attachment" "aws_attahment" {
 resource "aws_lb" "my_load_balancer" {
   name                       = "my-load-balancer"
   internal                   = false
-  load_balancer_type         = "application"
+  load_balancer_type         = var.load_balancer_type
   security_groups            = [aws_security_group.load_balancer_security_group.id]
   subnets                    = [for subnet in aws_subnet.public : subnet.id]
   enable_deletion_protection = false
@@ -182,7 +180,7 @@ resource "aws_lb" "my_load_balancer" {
 
 resource "aws_lb_listener" "my_lb_listener" {
   load_balancer_arn = aws_lb.my_load_balancer.arn
-  port              = "80"
+  port              = var.http_port
   protocol          = "HTTP"
   default_action {
     type             = "forward"
@@ -192,15 +190,15 @@ resource "aws_lb_listener" "my_lb_listener" {
 
 resource "aws_lb_target_group" "my_lb_target_group" {
   name     = "lb-target-group"
-  port     = 3000
+  port     = var.server_port
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
 
   health_check {
-    path = "/healthz"
-    protocol = "HTTP"
-    port = 3000
-    healthy_threshold = 5
+    path                = var.health_check_path
+    protocol            = "HTTP"
+    port                = var.server_port
+    healthy_threshold   = 5
     unhealthy_threshold = 10
   }
 }
