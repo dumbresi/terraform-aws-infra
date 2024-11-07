@@ -148,3 +148,118 @@ variable "route_53_ttl" {
   type    = string
   default = 60
 }
+
+variable "public_key" {
+  type = string
+}
+
+variable "autoscaling_minSize" {
+  type    = string
+  default = 1
+}
+
+variable "autoscaling_maxSize" {
+  type    = string
+  default = 3
+}
+
+variable "autoscaling_desiredCapacity" {
+  type    = string
+  default = 2
+}
+
+variable "health_check_grace_period" {
+  type    = string
+  default = 300
+}
+
+variable "autoscaling_cooldown" {
+  type    = string
+  default = 60
+}
+
+variable "autoscaling_policy_adjustment_type" {
+  type    = string
+  default = "ChangeInCapacity"
+}
+
+variable "autoscaling_group_name" {
+  type    = string
+  default = "csye6225_asg"
+}
+
+variable "cpu_high_alarm_comparison_operator" {
+  type = string
+}
+
+variable "cloudwatch_metric_alarm_name" {
+  type = string
+}
+
+variable "cpu_low_alarm_comparision_operatpr" {
+  type = string
+}
+
+variable "cpu_low_threshold" {
+  type    = string
+  default = 7
+}
+
+variable "cpu_high_threshold" {
+  type    = string
+  default = 10
+}
+
+variable "cloudwatch_metric_treat_missing_data" {
+  type = string
+}
+
+variable "cloudwatch_metric_evaluation_periods" {
+  type    = string
+  default = 1
+}
+
+variable "autoscaling_policy_scale_out_adjustment" {
+  type = string
+}
+
+variable "autoscaling_policy_scale_in_adjustment" {
+  type = string
+}
+
+variable "cloudwatch_metric_actions_enabled" {
+  type = bool
+}
+
+variable "cloudwatch_metric_alarm_namespace" {
+  type = string
+}
+
+variable "cloudwatch_metric_alarm_statistic" {
+  type = string
+}
+
+variable "health_check_path" {
+  type = string
+}
+
+variable "launch_temp_device_name" {
+  type = string
+}
+
+variable "launch_temp_name_prefix" {
+  type = string
+}
+
+variable "load_balancer_type" {
+  type    = string
+  default = "application"
+}
+
+variable "cpu_high_alarm_period" {
+  type = string
+}
+
+variable "cpu_low_alarm_period" {
+  type = string
+}

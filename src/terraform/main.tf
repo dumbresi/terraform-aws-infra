@@ -1,19 +1,71 @@
-resource "aws_instance" "my_ami_ec2" {
-  ami                         = var.ami_id
-  depends_on                  = [aws_db_instance.my_rds_instance]
-  instance_type               = var.ami_instance_type
-  subnet_id                   = aws_subnet.public[0].id
-  vpc_security_group_ids      = [aws_security_group.application_security_group.id]
-  associate_public_ip_address = true
-  root_block_device {
-    volume_size           = var.root_block_device_volume_size
-    volume_type           = var.root_block_device_volume_type
-    delete_on_termination = true
-  }
-  disable_api_termination = false
-  iam_instance_profile    = aws_iam_instance_profile.ec2_instance_profile.name
+# resource "aws_instance" "my_ami_ec2" {
+#   ami                         = var.ami_id
+#   depends_on                  = [aws_db_instance.my_rds_instance]
+#   instance_type               = var.ami_instance_type
+#   subnet_id                   = aws_subnet.public[0].id
+#   vpc_security_group_ids      = [aws_security_group.application_security_group.id]
+#   associate_public_ip_address = true
+#   root_block_device {
+#     volume_size           = var.root_block_device_volume_size
+#     volume_type           = var.root_block_device_volume_type
+#     delete_on_termination = true
+#   }
+#   disable_api_termination = false
+#   iam_instance_profile    = aws_iam_instance_profile.ec2_instance_profile.name
 
-  user_data = <<-EOF
+#   user_data = <<-EOF
+#               #!/bin/bash
+#               echo "App_Port=${var.server_port}" >> /usr/bin/.env
+#               echo "DB_Host=${aws_db_instance.my_rds_instance.address}">> /usr/bin/.env
+#               echo "DB_Port=${var.postgres_port}" >> /usr/bin/.env
+#               echo "DB_Name=${aws_db_instance.my_rds_instance.db_name}" >> /usr/bin/.env
+#               echo "DB_User=${aws_db_instance.my_rds_instance.username}" >> /usr/bin/.env
+#               echo "DB_Password=${aws_db_instance.my_rds_instance.password}" >> /usr/bin/.env
+#               echo "DB_SslMode=disable" >> /usr/bin/.env
+#               echo "AWS_Region=${var.aws_region}" >> /usr/bin/.env
+#               echo "S3_Bucket_Name=${aws_s3_bucket.my_s3_bucket.bucket}" >> /usr/bin/.env
+
+#               sudo systemctl restart webapp.service
+
+#               # Configure CloudWatch
+#               sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+#               -a fetch-config \
+#               -m ec2 \
+#               -c file:/opt/cloudwatch-config.json \
+#               -s
+
+#               EOF
+# }
+
+resource "aws_launch_template" "ec2_launch_template" {
+  name_prefix   = var.launch_temp_name_prefix
+  image_id      = var.ami_id
+  instance_type = var.ami_instance_type
+  key_name      = aws_key_pair.ssh_key_pair.key_name
+
+  disable_api_termination = false
+  depends_on              = [aws_db_instance.my_rds_instance]
+  # subnet_id                   = aws_subnet.public[0].id
+
+  block_device_mappings {
+    device_name = var.launch_temp_device_name
+    ebs {
+      volume_size           = var.root_block_device_volume_size
+      volume_type           = var.root_block_device_volume_type
+      delete_on_termination = true
+    }
+  }
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2_instance_profile.name
+  }
+
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.application_security_group.id]
+  }
+
+  user_data = base64encode(<<-EOF
               #!/bin/bash
               echo "App_Port=${var.server_port}" >> /usr/bin/.env
               echo "DB_Host=${aws_db_instance.my_rds_instance.address}">> /usr/bin/.env
@@ -35,12 +87,92 @@ resource "aws_instance" "my_ami_ec2" {
               -s
               
               EOF
+  )
+}
+
+resource "aws_autoscaling_group" "my_autoscalar" {
+  name                      = "csye6225_asg"
+  desired_capacity          = var.autoscaling_desiredCapacity
+  max_size                  = var.autoscaling_maxSize
+  min_size                  = var.autoscaling_minSize
+  health_check_grace_period = var.health_check_grace_period
+  default_cooldown          = var.autoscaling_cooldown
+  target_group_arns         = [aws_lb_target_group.my_lb_target_group.arn]
+  vpc_zone_identifier       = [aws_subnet.public[0].id, aws_subnet.public[1].id, aws_subnet.public[2].id]
+
+  launch_template {
+    id      = aws_launch_template.ec2_launch_template.id
+    version = "$Latest"
+  }
+}
+
+
+resource "aws_autoscaling_policy" "scale_out" {
+  name                   = "scale-out"
+  scaling_adjustment     = var.autoscaling_policy_scale_out_adjustment
+  adjustment_type        = var.autoscaling_policy_adjustment_type
+  cooldown               = var.autoscaling_cooldown
+  autoscaling_group_name = aws_autoscaling_group.my_autoscalar.name
+}
+
+resource "aws_autoscaling_policy" "scale_in" {
+  name                   = "scale-in"
+  scaling_adjustment     = var.autoscaling_policy_scale_in_adjustment
+  adjustment_type        = var.autoscaling_policy_adjustment_type
+  cooldown               = var.autoscaling_cooldown
+  autoscaling_group_name = aws_autoscaling_group.my_autoscalar.name
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_high" {
+  alarm_name          = "cpu-high"
+  comparison_operator = var.cpu_high_alarm_comparison_operator
+  evaluation_periods  = var.cloudwatch_metric_evaluation_periods
+  metric_name         = var.cloudwatch_metric_alarm_name
+  namespace           = var.cloudwatch_metric_alarm_namespace
+  period              = var.cpu_high_alarm_period
+  statistic           = var.cloudwatch_metric_alarm_statistic
+  threshold           = var.cpu_high_threshold
+  alarm_description   = "Scale out if CPU > 10%"
+  actions_enabled     = var.cloudwatch_metric_actions_enabled
+  treat_missing_data  = var.cloudwatch_metric_treat_missing_data
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.my_autoscalar.name
+  }
+
+  alarm_actions = [aws_autoscaling_policy.scale_out.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_low" {
+  alarm_name          = "cpu-low"
+  comparison_operator = var.cpu_low_alarm_comparision_operatpr
+  evaluation_periods  = var.cloudwatch_metric_evaluation_periods
+  metric_name         = var.cloudwatch_metric_alarm_name
+  namespace           = var.cloudwatch_metric_alarm_namespace
+  period              = var.cpu_low_alarm_period
+  statistic           = var.cloudwatch_metric_alarm_statistic
+  threshold           = var.cpu_low_threshold
+  alarm_description   = "Scale in if CPU < 7%"
+  actions_enabled     = var.cloudwatch_metric_actions_enabled
+  treat_missing_data  = var.cloudwatch_metric_treat_missing_data
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.my_autoscalar.name
+  }
+
+  alarm_actions = [aws_autoscaling_policy.scale_in.arn]
+}
+
+
+resource "aws_autoscaling_attachment" "aws_attahment" {
+  autoscaling_group_name = aws_autoscaling_group.my_autoscalar.id
+  lb_target_group_arn    = aws_lb_target_group.my_lb_target_group.arn
 }
 
 resource "aws_lb" "my_load_balancer" {
   name                       = "my-load-balancer"
   internal                   = false
-  load_balancer_type         = "application"
+  load_balancer_type         = var.load_balancer_type
   security_groups            = [aws_security_group.load_balancer_security_group.id]
   subnets                    = [for subnet in aws_subnet.public : subnet.id]
   enable_deletion_protection = false
@@ -48,7 +180,7 @@ resource "aws_lb" "my_load_balancer" {
 
 resource "aws_lb_listener" "my_lb_listener" {
   load_balancer_arn = aws_lb.my_load_balancer.arn
-  port              = "80"
+  port              = var.http_port
   protocol          = "HTTP"
   default_action {
     type             = "forward"
@@ -58,16 +190,24 @@ resource "aws_lb_listener" "my_lb_listener" {
 
 resource "aws_lb_target_group" "my_lb_target_group" {
   name     = "lb-target-group"
-  port     = 80
+  port     = var.server_port
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
+
+  health_check {
+    path                = var.health_check_path
+    protocol            = "HTTP"
+    port                = var.server_port
+    healthy_threshold   = 5
+    unhealthy_threshold = 10
+  }
 }
 
-resource "aws_lb_target_group_attachment" "my_lb_tgt_gp_attachment" {
-  target_group_arn = aws_lb_target_group.my_lb_target_group.arn
-  target_id        = aws_instance.my_ami_ec2.id
-  port             = 3000
-}
+# resource "aws_lb_target_group_attachment" "my_lb_tgt_gp_attachment" {
+#   target_group_arn = aws_lb_target_group.my_lb_target_group.arn
+#   target_id        = aws_instance.my_ami_ec2.id
+#   port             = 3000
+# }
 
 resource "aws_db_instance" "my_rds_instance" {
   allocated_storage      = var.rds_allocated_storage
@@ -354,8 +494,8 @@ resource "aws_vpc_security_group_ingress_rule" "lb_allow_http" {
 
 resource "aws_vpc_security_group_egress_rule" "lb_egress" {
   security_group_id = aws_security_group.load_balancer_security_group.id
-  cidr_ipv4 = var.cidr_block
-  ip_protocol = -1
+  cidr_ipv4         = var.cidr_block
+  ip_protocol       = -1
 }
 # resource "aws_vpc_security_group_ingress_rule" "allow_https" {
 #   security_group_id = aws_security_group.application_security_group.id
@@ -388,3 +528,8 @@ resource "aws_vpc_security_group_ingress_rule" "allow_server_port" {
 }
 
 resource "random_uuid" "bucket_uuid" {}
+
+resource "aws_key_pair" "ssh_key_pair" {
+  key_name   = "dev-key"
+  public_key = var.public_key
+}
