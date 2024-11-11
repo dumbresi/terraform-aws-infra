@@ -76,6 +76,7 @@ resource "aws_launch_template" "ec2_launch_template" {
               echo "DB_SslMode=disable" >> /usr/bin/.env
               echo "AWS_Region=${var.aws_region}" >> /usr/bin/.env
               echo "S3_Bucket_Name=${aws_s3_bucket.my_s3_bucket.bucket}" >> /usr/bin/.env
+              echo "Sns_Topic_Arn=${aws_sns_topic.email_validation_topic.arn}" >> /usr/bin/.env
 
               sudo systemctl restart webapp.service
 
@@ -115,7 +116,7 @@ resource "aws_lambda_function" "my_lambda_func" {
   handler       = "bootstrap"
   runtime       = "provided.al2"
   vpc_config {
-    subnet_ids = [aws_subnet.public[0].id, aws_subnet.public[1].id, aws_subnet.public[2].id]
+    subnet_ids         = [aws_subnet.public[0].id, aws_subnet.public[1].id, aws_subnet.public[2].id]
     security_group_ids = [aws_security_group.lambda_security_group.id]
   }
 
@@ -132,6 +133,25 @@ resource "aws_lambda_function" "my_lambda_func" {
       DB_SslMode  = "disable"
     }
   }
+}
+
+resource "aws_sns_topic" "email_validation_topic" {
+  name              = "user-email-validate"
+  kms_master_key_id = "alias/aws/sns"
+}
+
+resource "aws_sns_topic_subscription" "email_validate_lambda_target" {
+  topic_arn = aws_sns_topic.email_validation_topic.arn
+  protocol  = "lambda"
+  endpoint  = aws_lambda_function.my_lambda_func.arn
+}
+
+resource "aws_lambda_permission" "sns_permission" {
+  statement_id  = "AllowExecutionFromSNS"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.my_lambda_func.function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = aws_sns_topic.email_validation_topic.arn
 }
 
 resource "aws_iam_role" "iam_for_lambda" {
@@ -152,6 +172,51 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
+resource "aws_sns_topic_policy" "sns_policy" {
+  arn = aws_sns_topic.email_validation_topic.arn
+  policy = data.aws_iam_policy_document.sns_topic_policy.json
+}
+
+data "aws_iam_policy_document" "sns_topic_policy" {
+  policy_id = "__default_policy_ID"
+
+  statement {
+    actions = [
+      "SNS:Subscribe",
+      "SNS:SetTopicAttributes",
+      "SNS:RemovePermission",
+      "SNS:Receive",
+      "SNS:Publish",
+      "SNS:ListSubscriptionsByTopic",
+      "SNS:GetTopicAttributes",
+      "SNS:DeleteTopic",
+      "SNS:AddPermission",
+    ]
+
+    # condition {
+    #   test     = "StringEquals"
+    #   variable = "AWS:SourceOwner"
+
+    #   values = [
+    #     var.account-id,
+    #   ]
+    # }
+
+    effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+
+    resources = [
+      aws_sns_topic.email_validation_topic.arn,
+    ]
+
+    sid = "__default_statement_ID"
+  }
+}
+
 resource "aws_iam_policy_attachment" "lambda_vpc_access" {
   name       = "lambda_vpc_access_policy_attachment"
   roles      = [aws_iam_role.iam_for_lambda.name]
@@ -165,18 +230,18 @@ resource "aws_security_group" "lambda_security_group" {
 }
 resource "aws_vpc_security_group_ingress_rule" "lambda_ingress" {
   security_group_id = aws_security_group.lambda_security_group.id
-  cidr_ipv4 = var.cidr_block
-  from_port = 0
-  ip_protocol = "TCP"
-  to_port = 0
+  cidr_ipv4         = var.cidr_block
+  from_port         = 0
+  ip_protocol       = "TCP"
+  to_port           = 0
 }
 resource "aws_vpc_security_group_ingress_rule" "allow_postgres_lambda" {
-  security_group_id = aws_security_group.database_security_group.id
+  security_group_id            = aws_security_group.database_security_group.id
   referenced_security_group_id = aws_security_group.lambda_security_group.id
   # cidr_ipv4         = var.cidr_block
-  from_port         = var.postgres_port
-  ip_protocol       = "TCP"
-  to_port           = var.postgres_port
+  from_port   = var.postgres_port
+  ip_protocol = "TCP"
+  to_port     = var.postgres_port
 }
 
 resource "aws_vpc_security_group_egress_rule" "allow_all_traffic_lamda" {
