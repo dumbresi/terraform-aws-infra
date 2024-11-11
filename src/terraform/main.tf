@@ -106,6 +106,84 @@ resource "aws_autoscaling_group" "my_autoscalar" {
   }
 }
 
+resource "aws_lambda_function" "my_lambda_func" {
+  # If the file is not in the current working directory you will need to include a
+  # path.module in the filename.
+  filename      = "../../myFunction.zip"
+  function_name = "my_lambbdaEmailfunction"
+  role          = aws_iam_role.iam_for_lambda.arn
+  handler       = "bootstrap"
+  runtime       = "provided.al2"
+  vpc_config {
+    subnet_ids = [aws_subnet.public[0].id, aws_subnet.public[1].id, aws_subnet.public[2].id]
+    security_group_ids = [aws_security_group.lambda_security_group.id]
+  }
+
+  # runtime = "Amazon Linux 2023"
+
+  environment {
+    variables = {
+      App_Port    = var.server_port
+      DB_Host     = aws_db_instance.my_rds_instance.address
+      DB_Port     = 5432
+      DB_User     = var.DB_User
+      DB_Password = var.DB_Password
+      DB_Name     = var.DB_Name
+      DB_SslMode  = "disable"
+    }
+  }
+}
+
+resource "aws_iam_role" "iam_for_lambda" {
+  name               = "iam_for_lambda"
+  assume_role_policy = data.aws_iam_policy_document.assume_role.json
+}
+
+data "aws_iam_policy_document" "assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_policy_attachment" "lambda_vpc_access" {
+  name       = "lambda_vpc_access_policy_attachment"
+  roles      = [aws_iam_role.iam_for_lambda.name]
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+resource "aws_security_group" "lambda_security_group" {
+  name        = "lambda_to_rds_sg"
+  description = "Security group for Lambda function to access RDS"
+  vpc_id      = aws_vpc.main.id
+}
+resource "aws_vpc_security_group_ingress_rule" "lambda_ingress" {
+  security_group_id = aws_security_group.lambda_security_group.id
+  cidr_ipv4 = var.cidr_block
+  from_port = 0
+  ip_protocol = "TCP"
+  to_port = 0
+}
+resource "aws_vpc_security_group_ingress_rule" "allow_postgres_lambda" {
+  security_group_id = aws_security_group.database_security_group.id
+  referenced_security_group_id = aws_security_group.lambda_security_group.id
+  # cidr_ipv4         = var.cidr_block
+  from_port         = var.postgres_port
+  ip_protocol       = "TCP"
+  to_port           = var.postgres_port
+}
+
+resource "aws_vpc_security_group_egress_rule" "allow_all_traffic_lamda" {
+  security_group_id = aws_security_group.lambda_security_group.id
+  cidr_ipv4         = var.cidr_block
+  ip_protocol       = -1
+}
 
 resource "aws_autoscaling_policy" "scale_out" {
   name                   = "scale-out"
@@ -246,14 +324,16 @@ resource "aws_s3_bucket" "my_s3_bucket" {
   bucket        = "sid-bucket-${random_uuid.bucket_uuid.result}"
   force_destroy = true
 
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm = "AES256"
-      }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "my_s3_bucket_encryption" {
+  bucket = aws_s3_bucket.my_s3_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
     }
   }
-
 }
 
 resource "aws_s3_bucket_public_access_block" "example" {
