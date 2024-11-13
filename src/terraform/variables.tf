@@ -267,3 +267,8 @@ variable "cpu_low_alarm_period" {
 variable "sendgrid_api_key" {
   type = string
 }
+
+variable "lambda_filename_path" {
+  type    = string
+  default = "../../myFunction.zip"
+}

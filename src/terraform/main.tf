@@ -115,10 +115,10 @@ resource "aws_lambda_function" "my_lambda_func" {
   role          = aws_iam_role.iam_for_lambda.arn
   handler       = "bootstrap"
   runtime       = "provided.al2"
-  vpc_config {
-    subnet_ids         = [aws_subnet.public[0].id, aws_subnet.public[1].id, aws_subnet.public[2].id]
-    security_group_ids = [aws_security_group.lambda_security_group.id]
-  }
+  # vpc_config {
+  #   subnet_ids         = [aws_subnet.public[0].id, aws_subnet.public[1].id, aws_subnet.public[2].id]
+  #   security_group_ids = [aws_security_group.lambda_security_group.id]
+  # }
 
   # runtime = "Amazon Linux 2023"
 
@@ -616,12 +616,11 @@ resource "aws_vpc_security_group_egress_rule" "allow_traffic_from_db" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_load_balancer_traffic" {
-  security_group_id = aws_security_group.application_security_group.id
+  security_group_id            = aws_security_group.application_security_group.id
   referenced_security_group_id = aws_security_group.load_balancer_security_group.id
-  cidr_ipv4         = var.cidr_block
-  from_port         = var.http_port
-  ip_protocol       = "tcp"
-  to_port           = var.http_port
+  from_port                    = var.http_port
+  ip_protocol                  = "tcp"
+  to_port                      = var.http_port
 }
 
 # resource "aws_vpc_security_group_ingress_rule" "allow_http" {
