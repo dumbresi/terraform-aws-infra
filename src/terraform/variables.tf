@@ -263,3 +263,7 @@ variable "cpu_high_alarm_period" {
 variable "cpu_low_alarm_period" {
   type = string
 }
+
+variable "sendgrid_api_key" {
+  type = string
+}
