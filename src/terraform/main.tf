@@ -38,7 +38,7 @@
 # }
 
 resource "aws_launch_template" "ec2_launch_template" {
-  name_prefix   = var.launch_temp_name_prefix
+  name = var.launch_temp_name_prefix
   image_id      = var.ami_id
   instance_type = var.ami_instance_type
   key_name      = aws_key_pair.ssh_key_pair.key_name
@@ -46,6 +46,10 @@ resource "aws_launch_template" "ec2_launch_template" {
   disable_api_termination = false
   depends_on              = [aws_db_instance.my_rds_instance]
   # subnet_id                   = aws_subnet.public[0].id
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
   block_device_mappings {
     device_name = var.launch_temp_device_name
@@ -104,6 +108,10 @@ resource "aws_autoscaling_group" "my_autoscalar" {
   launch_template {
     id      = aws_launch_template.ec2_launch_template.id
     version = "$Latest"
+  }
+
+  instance_refresh {
+    strategy = "Rolling"
   }
 }
 
