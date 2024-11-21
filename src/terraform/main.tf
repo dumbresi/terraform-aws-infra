@@ -38,7 +38,7 @@
 # }
 
 resource "aws_launch_template" "ec2_launch_template" {
-  name = var.launch_temp_name_prefix
+  name          = var.launch_temp_name_prefix
   image_id      = var.ami_id
   instance_type = var.ami_instance_type
   key_name      = aws_key_pair.ssh_key_pair.key_name
@@ -116,19 +116,11 @@ resource "aws_autoscaling_group" "my_autoscalar" {
 }
 
 resource "aws_lambda_function" "my_lambda_func" {
-  # If the file is not in the current working directory you will need to include a
-  # path.module in the filename.
-  filename      = "../../myFunction.zip"
-  function_name = "my_lambbdaEmailfunction"
+  filename      = var.lambda_filename_path
+  function_name = var.lambda_function_name
   role          = aws_iam_role.iam_for_lambda.arn
-  handler       = "bootstrap"
-  runtime       = "provided.al2"
-  # vpc_config {
-  #   subnet_ids         = [aws_subnet.public[0].id, aws_subnet.public[1].id, aws_subnet.public[2].id]
-  #   security_group_ids = [aws_security_group.lambda_security_group.id]
-  # }
-
-  # runtime = "Amazon Linux 2023"
+  handler       = var.lambda_handler
+  runtime       = var.lambda_runtime
 
   environment {
     variables = {
@@ -147,12 +139,12 @@ resource "aws_lambda_function" "my_lambda_func" {
 
 resource "aws_sns_topic" "email_validation_topic" {
   name              = "user-email-validate"
-  kms_master_key_id = "alias/aws/sns"
+  kms_master_key_id = var.sns_kms_master_key_id
 }
 
 resource "aws_sns_topic_subscription" "email_validate_lambda_target" {
   topic_arn = aws_sns_topic.email_validation_topic.arn
-  protocol  = "lambda"
+  protocol  = var.sns_protocol
   endpoint  = aws_lambda_function.my_lambda_func.arn
 }
 
@@ -631,6 +623,16 @@ resource "aws_vpc_security_group_ingress_rule" "allow_load_balancer_traffic" {
   to_port                      = var.http_port
 }
 
+resource "aws_security_group_rule" "allow_ipv6_to_lb" {
+  type              = "ingress"
+  from_port         = 80 # Adjust for your specific ports
+  to_port           = 80
+  protocol          = "tcp"
+  cidr_blocks       = []
+  ipv6_cidr_blocks  = ["::/0"] # Allow all IPv6 addresses
+  security_group_id = aws_security_group.load_balancer_security_group.id
+}
+
 # resource "aws_vpc_security_group_ingress_rule" "allow_http" {
 #   security_group_id = aws_security_group.application_security_group.id
 #   cidr_ipv4         = var.cidr_block
@@ -647,9 +649,15 @@ resource "aws_vpc_security_group_ingress_rule" "lb_allow_http" {
   to_port           = var.http_port
 }
 
-resource "aws_vpc_security_group_egress_rule" "lb_egress" {
+resource "aws_vpc_security_group_egress_rule" "lb_egress_ipv4" {
   security_group_id = aws_security_group.load_balancer_security_group.id
   cidr_ipv4         = var.cidr_block
+  ip_protocol       = -1
+}
+
+resource "aws_vpc_security_group_egress_rule" "lb_egress_ipv6" {
+  security_group_id = aws_security_group.load_balancer_security_group.id
+  cidr_ipv6         = "::/0"
   ip_protocol       = -1
 }
 # resource "aws_vpc_security_group_ingress_rule" "allow_https" {
