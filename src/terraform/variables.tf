@@ -272,3 +272,30 @@ variable "lambda_filename_path" {
   type    = string
   default = "../../myFunction.zip"
 }
+
+variable "lambda_function_name" {
+  type    = string
+  default = "my_lambbdaEmailfunction"
+}
+
+variable "lambda_handler" {
+  type    = string
+  default = "bootstrap"
+}
+
+variable "lambda_runtime" {
+  type    = string
+  default = "provided.al2"
+}
+
+variable "sns_kms_master_key_id" {
+  type    = string
+  default = "alias/aws/sns"
+}
+
+variable "sns_protocol" {
+  type    = string
+  default = "lambda"
+}
+
+
