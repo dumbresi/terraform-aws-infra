@@ -57,6 +57,8 @@ resource "aws_launch_template" "ec2_launch_template" {
       volume_size           = var.root_block_device_volume_size
       volume_type           = var.root_block_device_volume_type
       delete_on_termination = true
+      encrypted             = true
+      kms_key_id            = aws_kms_key.ec2_kms_key.arn
     }
   }
 
@@ -368,6 +370,8 @@ resource "aws_db_instance" "my_rds_instance" {
   password               = var.DB_Password
   parameter_group_name   = aws_db_parameter_group.rds_parameter_group.name
   skip_final_snapshot    = var.skip_final_snapshot
+  storage_encrypted      = true
+  kms_key_id             = aws_kms_key.rds_kms_key.arn
 }
 
 resource "aws_iam_role" "ec2_role" {
@@ -391,6 +395,7 @@ resource "aws_s3_bucket" "my_s3_bucket" {
   bucket        = "sid-bucket-${random_uuid.bucket_uuid.result}"
   force_destroy = true
 
+
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "my_s3_bucket_encryption" {
@@ -398,7 +403,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "my_s3_bucket_encr
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      kms_master_key_id = aws_kms_key.s3_kms_key.arn
+      sse_algorithm     = "aws:kms"
     }
   }
 }
@@ -696,3 +702,215 @@ resource "aws_key_pair" "ssh_key_pair" {
   key_name   = "dev-key"
   public_key = var.public_key
 }
+
+resource "aws_kms_key" "ec2_kms_key" {
+  description             = "KMS key for ec2"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+}
+
+resource "aws_kms_key" "rds_kms_key" {
+  description             = "KMS key for RDS"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+}
+
+resource "aws_kms_key" "s3_kms_key" {
+  description             = "KMS key for s3"
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
+}
+
+
+resource "aws_kms_key_policy" "ec2_policy" {
+  key_id = aws_kms_key.ec2_kms_key.id
+  policy = jsonencode({
+    "Id" : "key-consolepolicy-3",
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Sid" : "Enable IAM User Permissions",
+        "Effect" : "Allow",
+        "Principal" : {
+          "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        "Action" : "kms:*",
+        "Resource" : "*"
+      },
+      {
+        "Sid" : "Allow access for Key Administrators",
+        "Effect" : "Allow",
+        "Principal" : {
+          "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        "Action" : [
+          "kms:Create*",
+          "kms:Describe*",
+          "kms:Enable*",
+          "kms:List*",
+          "kms:Put*",
+          "kms:Update*",
+          "kms:Revoke*",
+          "kms:Disable*",
+          "kms:Get*",
+          "kms:Delete*",
+          "kms:TagResource",
+          "kms:UntagResource",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion",
+          "kms:RotateKeyOnDemand"
+        ],
+        "Resource" : "*"
+      },
+      {
+        "Sid" : "Allow use of the key",
+        "Effect" : "Allow",
+        "Principal" : {
+          "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+        },
+        "Action" : [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ],
+        "Resource" : "*"
+      },
+      {
+        "Sid" : "Allow attachment of persistent resources",
+        "Effect" : "Allow",
+        "Principal" : {
+          "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+        },
+        "Action" : [
+          "kms:CreateGrant",
+          "kms:ListGrants",
+          "kms:RevokeGrant"
+        ],
+        "Resource" : "*",
+        "Condition" : {
+          "Bool" : {
+            "kms:GrantIsForAWSResource" : "true"
+          }
+        }
+      }
+    ]
+  })
+
+}
+
+resource "aws_kms_key_policy" "kms_rds_policy" {
+  key_id = aws_kms_key.rds_kms_key.id
+  policy = jsonencode({
+    "Id" : "key-consolepolicy-3",
+    "Version" : "2012-10-17",
+    "Statement" : [
+      {
+        "Sid" : "Enable IAM User Permissions",
+        "Effect" : "Allow",
+        "Principal" : {
+          "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        "Action" : "kms:*",
+        "Resource" : "${aws_kms_key.rds_kms_key.arn}"
+      },
+      {
+        "Sid" : "Allow access for Key Administrators",
+        "Effect" : "Allow",
+        "Principal" : {
+          "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        "Action" : [
+          "kms:Create*",
+          "kms:Describe*",
+          "kms:Enable*",
+          "kms:List*",
+          "kms:Put*",
+          "kms:Update*",
+          "kms:Revoke*",
+          "kms:Disable*",
+          "kms:Get*",
+          "kms:Delete*",
+          "kms:TagResource",
+          "kms:UntagResource",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion",
+          "kms:RotateKeyOnDemand"
+        ],
+        "Resource" : "${aws_kms_key.rds_kms_key.arn}"
+      },
+      {
+        "Sid" : "Allow use of the key",
+        "Effect" : "Allow",
+        "Principal" : {
+          "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS"
+        },
+        "Action" : [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ],
+        "Resource" : "${aws_kms_key.rds_kms_key.arn}"
+      },
+      {
+        "Sid" : "Allow attachment of persistent resources",
+        "Effect" : "Allow",
+        "Principal" : {
+          "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS"
+        },
+        "Action" : [
+          "kms:CreateGrant",
+          "kms:ListGrants",
+          "kms:RevokeGrant"
+        ],
+        "Resource" : "${aws_kms_key.rds_kms_key.arn}",
+        "Condition" : {
+          "Bool" : {
+            "kms:GrantIsForAWSResource" : "true"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_kms_key_policy" "kms_s3_policy" {
+  key_id = aws_kms_key.s3_kms_key.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "${aws_kms_key.s3_kms_key.arn}"
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey",
+          "kms:CreateGrant",
+          "kms:ListGrants",
+          "kms:RevokeGrant"
+        ]
+        Resource = "${aws_kms_key.s3_kms_key.arn}"
+      }
+    ]
+  })
+}
+
+
+
+data "aws_caller_identity" "current" {}
