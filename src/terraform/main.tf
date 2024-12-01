@@ -73,16 +73,23 @@ resource "aws_launch_template" "ec2_launch_template" {
 
   user_data = base64encode(<<-EOF
               #!/bin/bash
+
+              apt install -y awscli jq
+
+              SECRET=$(aws secretsmanager get-secret-value --secret-id ${aws_secretsmanager_secret.my_secret_manager.name} --region ${var.aws_region} --query SecretString --output text)
+              DB_PASSWORD=$(echo $SECRET | jq -r '.DB_Password')
+
               echo "App_Port=${var.server_port}" >> /usr/bin/.env
               echo "DB_Host=${aws_db_instance.my_rds_instance.address}">> /usr/bin/.env
               echo "DB_Port=${var.postgres_port}" >> /usr/bin/.env
               echo "DB_Name=${aws_db_instance.my_rds_instance.db_name}" >> /usr/bin/.env
               echo "DB_User=${aws_db_instance.my_rds_instance.username}" >> /usr/bin/.env
-              echo "DB_Password=${aws_db_instance.my_rds_instance.password}" >> /usr/bin/.env
+              echo "DB_Password=$DB_PASSWORD" >> /usr/bin/.env
               echo "DB_SslMode=disable" >> /usr/bin/.env
               echo "AWS_Region=${var.aws_region}" >> /usr/bin/.env
               echo "S3_Bucket_Name=${aws_s3_bucket.my_s3_bucket.bucket}" >> /usr/bin/.env
               echo "Sns_Topic_Arn=${aws_sns_topic.email_validation_topic.arn}" >> /usr/bin/.env
+
 
               sudo systemctl restart webapp.service
 
