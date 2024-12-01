@@ -74,7 +74,8 @@ resource "aws_launch_template" "ec2_launch_template" {
   user_data = base64encode(<<-EOF
               #!/bin/bash
 
-              apt install -y awscli jq
+              sudo apt install snapd -y
+              sudo snap install aws-cli --classic
 
               SECRET=$(aws secretsmanager get-secret-value --secret-id ${aws_secretsmanager_secret.my_secret_manager.name} --region ${var.aws_region} --query SecretString --output text)
               DB_PASSWORD=$(echo $SECRET | jq -r '.DB_Password')
@@ -784,7 +785,7 @@ resource "aws_kms_key" "secret_manager_key" {
 }
 
 resource "aws_secretsmanager_secret" "my_secret_manager" {
-  name       = "MySecretManager"
+  name       = "MySecretManager--${random_uuid.bucket_uuid.result}"
   kms_key_id = aws_kms_key.secret_manager_key.id
 }
 
