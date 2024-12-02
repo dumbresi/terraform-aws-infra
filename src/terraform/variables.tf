@@ -301,3 +301,18 @@ variable "sns_protocol" {
 variable "acm_certificate_arn" {
   type = string
 }
+
+variable "kms_rotation_period_in_days" {
+  type    = string
+  default = "90"
+}
+
+variable "kms_deletion_window_in_days" {
+  type    = string
+  default = "7"
+}
+
+variable "api_domain" {
+  type    = string
+  default = "https://demo.siddumbre.me"
+}

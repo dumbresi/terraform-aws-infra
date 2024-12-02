@@ -135,7 +135,7 @@ resource "aws_lambda_function" "my_lambda_func" {
   environment {
     variables = {
       SecretsManagerName = "${aws_secretsmanager_secret.my_secret_manager.name}"
-      API_ENDPOINT       = var.route_53_name
+      API_ENDPOINT       = var.api_domain
     }
   }
 }
@@ -702,11 +702,11 @@ resource "aws_vpc_security_group_ingress_rule" "allow_load_balancer_traffic" {
 
 resource "aws_security_group_rule" "allow_ipv6_to_lb" {
   type              = "ingress"
-  from_port         = var.https_port # Adjust for your specific ports
+  from_port         = var.https_port
   to_port           = var.https_port
   protocol          = "tcp"
   cidr_blocks       = []
-  ipv6_cidr_blocks  = ["::/0"] # Allow all IPv6 addresses
+  ipv6_cidr_blocks  = ["::/0"]
   security_group_id = aws_security_group.load_balancer_security_group.id
 }
 
@@ -777,30 +777,35 @@ resource "aws_key_pair" "ssh_key_pair" {
 resource "aws_kms_key" "ec2_kms_key" {
   description             = "KMS key for ec2"
   enable_key_rotation     = true
-  deletion_window_in_days = 7
+  rotation_period_in_days = var.kms_rotation_period_in_days
+  deletion_window_in_days = var.kms_deletion_window_in_days
 }
 
 resource "aws_kms_key" "rds_kms_key" {
   description             = "KMS key for RDS"
   enable_key_rotation     = true
-  deletion_window_in_days = 7
+  rotation_period_in_days = var.kms_rotation_period_in_days
+  deletion_window_in_days = var.kms_deletion_window_in_days
 }
 
 resource "aws_kms_key" "s3_kms_key" {
   description             = "KMS key for s3"
   enable_key_rotation     = true
-  deletion_window_in_days = 7
+  rotation_period_in_days = var.kms_rotation_period_in_days
+  deletion_window_in_days = var.kms_deletion_window_in_days
 }
 
 resource "aws_kms_key" "secret_manager_key" {
   description             = "KMS key for secret manager"
   enable_key_rotation     = true
-  deletion_window_in_days = 7
+  rotation_period_in_days = var.kms_rotation_period_in_days
+  deletion_window_in_days = var.kms_deletion_window_in_days
 }
 
 resource "aws_secretsmanager_secret" "my_secret_manager" {
-  name       = "MySecretManager--${random_uuid.bucket_uuid.result}"
-  kms_key_id = aws_kms_key.secret_manager_key.id
+  name                    = "MySecretManager--${random_uuid.bucket_uuid.result}"
+  kms_key_id              = aws_kms_key.secret_manager_key.id
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "example" {
@@ -1024,7 +1029,7 @@ resource "aws_kms_key_policy" "kms_secrets_manager_policy" {
           "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
         },
         "Action" : "kms:*",
-        "Resource" : "*"
+        "Resource" : "${aws_kms_key.secret_manager_key.arn}"
       },
       {
         "Sid" : "AllowSecretsManagerUseOfKey",
