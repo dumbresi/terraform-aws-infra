@@ -135,7 +135,7 @@ resource "aws_lambda_function" "my_lambda_func" {
   environment {
     variables = {
       SecretsManagerName = "${aws_secretsmanager_secret.my_secret_manager.name}"
-      API_ENDPOINT     = var.route_53_name
+      API_ENDPOINT       = var.route_53_name
     }
   }
 }
@@ -497,6 +497,17 @@ resource "aws_iam_policy" "s3_access_policy" {
           "arn:aws:s3:::${aws_s3_bucket.my_s3_bucket.bucket}",
           "arn:aws:s3:::${aws_s3_bucket.my_s3_bucket.bucket}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "${aws_kms_key.s3_kms_key.arn}"
       }
     ]
   })
@@ -819,7 +830,7 @@ resource "aws_kms_key_policy" "ec2_policy" {
           "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
         },
         "Action" : "kms:*",
-        "Resource" : "*"
+        "Resource" : "${aws_kms_key.ec2_kms_key.arn}"
       },
       {
         "Sid" : "Allow access for Key Administrators",
@@ -844,7 +855,7 @@ resource "aws_kms_key_policy" "ec2_policy" {
           "kms:CancelKeyDeletion",
           "kms:RotateKeyOnDemand"
         ],
-        "Resource" : "*"
+        "Resource" : "${aws_kms_key.ec2_kms_key.arn}"
       },
       {
         "Sid" : "Allow use of the key",
@@ -859,7 +870,7 @@ resource "aws_kms_key_policy" "ec2_policy" {
           "kms:GenerateDataKey*",
           "kms:DescribeKey"
         ],
-        "Resource" : "*"
+        "Resource" : "${aws_kms_key.ec2_kms_key.arn}"
       },
       {
         "Sid" : "Allow attachment of persistent resources",
@@ -872,7 +883,7 @@ resource "aws_kms_key_policy" "ec2_policy" {
           "kms:ListGrants",
           "kms:RevokeGrant"
         ],
-        "Resource" : "*",
+        "Resource" : "${aws_kms_key.ec2_kms_key.arn}",
         "Condition" : {
           "Bool" : {
             "kms:GrantIsForAWSResource" : "true"
@@ -990,6 +1001,11 @@ resource "aws_kms_key_policy" "kms_s3_policy" {
           "kms:RevokeGrant"
         ]
         Resource = "${aws_kms_key.s3_kms_key.arn}"
+        Condition = {
+          StringEquals = {
+            "aws:SourceArn" = "arn:aws:s3:::${aws_s3_bucket.my_s3_bucket.id}"
+          }
+        }
       }
     ]
   })
