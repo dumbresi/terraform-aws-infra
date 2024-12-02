@@ -691,8 +691,8 @@ resource "aws_vpc_security_group_ingress_rule" "allow_load_balancer_traffic" {
 
 resource "aws_security_group_rule" "allow_ipv6_to_lb" {
   type              = "ingress"
-  from_port         = 443 # Adjust for your specific ports
-  to_port           = 443
+  from_port         = var.https_port # Adjust for your specific ports
+  to_port           = var.https_port
   protocol          = "tcp"
   cidr_blocks       = []
   ipv6_cidr_blocks  = ["::/0"] # Allow all IPv6 addresses
@@ -707,7 +707,7 @@ resource "aws_security_group_rule" "allow_ipv6_to_lb" {
 #   to_port           = var.http_port
 # }
 
-resource "aws_vpc_security_group_ingress_rule" "lb_allow_http" {
+resource "aws_vpc_security_group_ingress_rule" "lb_allow_https" {
   security_group_id = aws_security_group.load_balancer_security_group.id
   cidr_ipv4         = var.cidr_block
   from_port         = var.https_port
