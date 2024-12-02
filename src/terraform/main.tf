@@ -134,15 +134,7 @@ resource "aws_lambda_function" "my_lambda_func" {
 
   environment {
     variables = {
-      App_Port         = var.server_port
-      DB_Host          = aws_db_instance.my_rds_instance.address
-      DB_Port          = 5432
-      DB_User          = var.DB_User
-      DB_Password      = var.DB_Password
-      DB_Name          = var.DB_Name
-      DB_SslMode       = "disable"
-      SENDGRID_API_KEY = var.sendgrid_api_key
-      API_ENDPOINT     = var.route_53_name
+      SecretsManagerName = "${aws_secretsmanager_secret.my_secret_manager.name}"
     }
   }
 }
@@ -185,6 +177,11 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_secret_manager_attachment" {
+  role       = aws_iam_role.iam_for_lambda.name
+  policy_arn = aws_iam_policy.lambda_secrets_manager_access_policy.arn
+}
+
 resource "aws_iam_policy" "lambda_secrets_manager_access_policy" {
   name = "SecretsManagerAccessForLambda"
   policy = jsonencode({
@@ -202,7 +199,8 @@ resource "aws_iam_policy" "lambda_secrets_manager_access_policy" {
         "Sid" : "AllowKMSDecrypt",
         "Effect" : "Allow",
         "Action" : [
-          "kms:Decrypt"
+          "kms:Decrypt",
+          "kms:DescribeKey"
         ],
         "Resource" : "${aws_kms_key.secret_manager_key.arn}"
       }
@@ -353,8 +351,10 @@ resource "aws_lb" "my_load_balancer" {
 
 resource "aws_lb_listener" "my_lb_listener" {
   load_balancer_arn = aws_lb.my_load_balancer.arn
-  port              = var.http_port
-  protocol          = "HTTP"
+  port              = var.https_port
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = var.acm_certificate_arn
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.my_lb_target_group.arn
@@ -538,7 +538,8 @@ resource "aws_iam_policy" "ec2_secretManager_access_policy" {
         "Sid" : "AllowKMSDecrypt",
         "Effect" : "Allow",
         "Action" : [
-          "kms:Decrypt"
+          "kms:Decrypt",
+          "kms:DescribeKey"
         ],
         "Resource" : "${aws_kms_key.secret_manager_key.arn}"
       }
@@ -681,15 +682,15 @@ resource "aws_vpc_security_group_egress_rule" "allow_traffic_from_db" {
 resource "aws_vpc_security_group_ingress_rule" "allow_load_balancer_traffic" {
   security_group_id            = aws_security_group.application_security_group.id
   referenced_security_group_id = aws_security_group.load_balancer_security_group.id
-  from_port                    = var.http_port
+  from_port                    = var.https_port
   ip_protocol                  = "tcp"
-  to_port                      = var.http_port
+  to_port                      = var.https_port
 }
 
 resource "aws_security_group_rule" "allow_ipv6_to_lb" {
   type              = "ingress"
-  from_port         = 80 # Adjust for your specific ports
-  to_port           = 80
+  from_port         = 443 # Adjust for your specific ports
+  to_port           = 443
   protocol          = "tcp"
   cidr_blocks       = []
   ipv6_cidr_blocks  = ["::/0"] # Allow all IPv6 addresses
@@ -707,9 +708,9 @@ resource "aws_security_group_rule" "allow_ipv6_to_lb" {
 resource "aws_vpc_security_group_ingress_rule" "lb_allow_http" {
   security_group_id = aws_security_group.load_balancer_security_group.id
   cidr_ipv4         = var.cidr_block
-  from_port         = var.http_port
+  from_port         = var.https_port
   ip_protocol       = "tcp"
-  to_port           = var.http_port
+  to_port           = var.https_port
 }
 
 resource "aws_vpc_security_group_egress_rule" "lb_egress_ipv4" {
@@ -1008,6 +1009,19 @@ resource "aws_kms_key_policy" "kms_secrets_manager_policy" {
         "Resource" : "*"
       },
       {
+        "Sid" : "AllowSecretsManagerUseOfKey",
+        "Effect" : "Allow",
+        "Principal" : { "Service" : "secretsmanager.amazonaws.com" },
+        "Action" : [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ],
+        "Resource" : "${aws_kms_key.secret_manager_key.arn}"
+      },
+      {
         "Sid" : "Allow Use of Key for ec2",
         "Effect" : "Allow",
         "Principal" : {
@@ -1026,9 +1040,10 @@ resource "aws_kms_key_policy" "kms_secrets_manager_policy" {
           "AWS" : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${aws_iam_role.iam_for_lambda.name}"
         },
         "Action" : [
-          "kms:Decrypt"
+          "kms:Decrypt",
+          "kms:DescribeKey"
         ],
-        "Resource" : "${aws_kms_key.secret_manager_key.arn}"
+        "Resource" : "*"
       }
     ]
   })

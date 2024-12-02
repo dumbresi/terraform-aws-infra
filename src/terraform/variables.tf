@@ -298,4 +298,6 @@ variable "sns_protocol" {
   default = "lambda"
 }
 
-
+variable "acm_certificate_arn" {
+  type = string
+}
