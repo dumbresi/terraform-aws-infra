@@ -135,6 +135,7 @@ resource "aws_lambda_function" "my_lambda_func" {
   environment {
     variables = {
       SecretsManagerName = "${aws_secretsmanager_secret.my_secret_manager.name}"
+      API_ENDPOINT     = var.route_53_name
     }
   }
 }
@@ -191,7 +192,8 @@ resource "aws_iam_policy" "lambda_secrets_manager_access_policy" {
         "Sid" : "SecretsManagerAccess",
         "Effect" : "Allow",
         "Action" : [
-          "secretsmanager:GetSecretValue"
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
         ],
         "Resource" : "${aws_secretsmanager_secret.my_secret_manager.arn}"
       },
@@ -1043,7 +1045,7 @@ resource "aws_kms_key_policy" "kms_secrets_manager_policy" {
           "kms:Decrypt",
           "kms:DescribeKey"
         ],
-        "Resource" : "*"
+        "Resource" : "${aws_kms_key.secret_manager_key.arn}"
       }
     ]
   })
