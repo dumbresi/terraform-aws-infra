@@ -6,6 +6,7 @@ cd terraform
 <!-- Create a dev.tfvars or demo.tfvars file for variable values -->
 terraform apply -var-file="dev.tfvars"
 
+Please include a dev.tfvars file in the /src/terraform path
 
 SSL 
 
