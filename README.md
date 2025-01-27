@@ -3,21 +3,16 @@
 Commands to run the infra
 cd src
 cd terraform
-<!-- Create a dev.tfvars or demo.tfvars file for variable values -->
 terraform apply -var-file="dev.tfvars"
 
 Please include a dev.tfvars file in the /src/terraform path
 
 SSL 
 
-aws acm import-certificate \
-    --certificate file://~/Documents/SSL/demo.siddumbre.me/certificate.crt \
-    --private-key file://~/Documents/SSL/demo.siddumbre.me/private.key \
-    --certificate-chain file://~/Documents/SSL/demo.siddumbre.me/ca_bundle.crt \
-    --region 'us-east-1' \
-    --profile 'demo'
+This terraform code sets up the infrastructure on AWS which includes a VPC, 3 private and 3 public subnets
 
+# Key features:
 
-aws elb modify-load-balancer-attributes \
-    --load-balancer-name my-load-balancer \
-    --listeners Protocol=HTTPS,LoadBalancerPort=443,InstancePort=80,SSLCertificateId=certificate-arn
+- All the resources and the data is encrypted with KMS key
+- Access to the resources are restricted by ingress and egress rules
+- Custom policies are made for every resource in order to prevent external excess
