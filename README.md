@@ -53,4 +53,4 @@ The system is designed to use both public and private subnets within a VPC. Belo
 
 1. Clone this repository to your local machine.
    ```bash
-   git clone <repository-url>
+   git clone <git@github.com:dumbresi/terraform-aws-infra.git>
